@@ -89,3 +89,10 @@ AI Web Helper 是一个浏览器扩展插件，可以将网页内容一键发送
 - `MODEL`: 使用的模型名称
 - `OLLAMA_URL`: Ollama 接口地址
 - `OLLAMA_MODEL`: Ollama 使用的模型名称
+
+
+
+### 已知问题
+1. 首次拖动流式输出窗口时窗口会闪动（不影响使用，本人没有javascript经验，请自行解决）
+2. 关闭输出窗口如果输出没有结束，下次再开启会继续上次的输出，但没有历史消息
+3. 暂时不支持图片ocr，但是添加了图片上传功能，请自行修改 [webserver.py](server/webserver.py) 中的相关参数。
