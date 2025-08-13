@@ -1,6 +1,13 @@
 # AI Web Helper
+<img src="imgs/fda0d988-d03d-4118-ac8c-eca7f7e82b16.png" width="800">
 
 AI Web Helper 是一个浏览器扩展插件，可以将网页内容一键发送给 AI 进行分析和总结。
+
+
+## 效果预览
+<img src="imgs/97856d6b-f84c-4260-a337-f4e74845befa.png" width="800">
+<img src="imgs/bb5d29c1-3221-4bb4-b8c0-7b4e13fe9fba.png" width="800">
+
 
 ## 功能特性
 
