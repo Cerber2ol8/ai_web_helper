@@ -1,0 +1,12 @@
+modelscope
+fastapi
+uvicorn
+pydantic
+pandas
+numpy
+scipy
+dotenv
+flask
+addict
+datasets
+vllm

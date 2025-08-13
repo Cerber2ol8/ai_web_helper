@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>“一键发送到 AI，总结网页内容” Chrome 插件</title>
+  <meta name="description" content="一键将网页内容发送给 AI，快速生成摘要的 Chrome 浏览器扩展。">
+  <style>
+    :root {
+      --bg: #0b1020;
+      --card: #12172b;
+      --text: #e7ecff;
+      --muted: #a9b1d6;
+      --brand: #6ae3ff;
+      --accent: #b5f5d6;
+      --ring: rgba(106, 227, 255, .4);
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: radial-gradient(1200px 600px at 20% -10%, #1a2140 0%, var(--bg) 60%) no-repeat, var(--bg); color: var(--text); font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif; }
+    a { color: var(--brand); text-decoration: none; }
+    .container { max-width: 1080px; margin: 0 auto; padding: 24px; }
+    .hero { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 32px; align-items: center; padding: 28px; background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02)); border: 1px solid rgba(255,255,255,0.1); border-radius: 24px; box-shadow: 0 10px 40px rgba(0,0,0,.35), inset 0 0 0 1px rgba(255,255,255,.06); }
+    .hero h1 { font-size: clamp(28px, 3vw, 44px); line-height: 1.05; margin: 0 0 12px; letter-spacing: .2px; }
+    .hero p.lead { color: var(--muted); font-size: clamp(14px, 1.6vw, 18px); margin: 8px 0 22px; }
+    .cta { display: flex; gap: 12px; flex-wrap: wrap; }
+    .btn { padding: 12px 18px; border-radius: 14px; border: 1px solid rgba(255,255,255,0.18); background: linear-gradient(180deg, rgba(106,227,255,.25), rgba(106,227,255,.08)); backdrop-filter: blur(6px); color: var(--text); font-weight: 600; cursor: pointer; transition: all .2s ease; box-shadow: 0 6px 20px rgba(106, 227, 255, .25); }
+    .btn:hover { transform: translateY(-1px); box-shadow: 0 10px 26px rgba(106, 227, 255, .35); }
+    .btn.secondary { background: rgba(255,255,255,0.06); box-shadow: none; }
+    .pet { width: 100%; max-width: 460px; filter: drop-shadow(0 20px 40px rgba(0,0,0,.35)); border-radius: 20px; }
+    .badge { display: inline-flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 999px; background: rgba(181, 245, 214, .12); border: 1px solid rgba(181, 245, 214, .25); color: var(--accent); font-weight: 600; font-size: 12px; letter-spacing: .4px; text-transform: uppercase; }
+    .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 28px; }
+    .card { background: var(--card); border: 1px solid rgba(255,255,255,0.08); border-radius: 20px; padding: 18px; box-shadow: 0 6px 26px rgba(0,0,0,.28); position: relative; overflow: hidden; }
+    .card h3 { margin: 0 0 8px; font-size: 18px; }
+    .card p { margin: 0; color: var(--muted); font-size: 14px; }
+    .steps { margin-top: 8px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+    .step { padding: 16px; border-radius: 16px; background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02)); border: 1px dashed rgba(255,255,255,0.16); }
+    .step b { color: var(--brand); }
+    .kbd { padding: 2px 6px; border: 1px solid rgba(255,255,255,0.2); border-radius: 6px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; background: rgba(255,255,255,0.05); }
+    .inputrow { display:flex; gap:8px; margin-top:8px; }
+    .inputrow input { flex:1; padding: 10px 12px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.18); border-radius: 12px; color: var(--text); outline: none; }
+    .muted { color: var(--muted); }
+    .footer { margin: 28px 0 8px; color: var(--muted); font-size: 12px; text-align:center; opacity:.9 }
+    .tag { display:inline-block; padding: 4px 10px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.12); margin-right: 8px; margin-bottom: 6px; font-size: 12px; color: var(--muted); }
+    @media (max-width: 900px) {
+      .hero { grid-template-columns: 1fr; text-align: center; }
+      .cta { justify-content: center; }
+      .grid { grid-template-columns: 1fr; }
+      .steps { grid-template-columns: 1fr; }
+      .pet { margin: 0 auto; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="hero">
+      <div>
+        <span class="badge">Chrome 扩展 · 摘要助手</span>
+        <h1>一键将网页内容发送给 <span style="text-shadow:0 0 18px var(--ring)">AI</span>，<br/>几秒生成清爽总结</h1>
+        <p class="lead">在任何网页上点击 <b>Send → AI</b>，扩展会自动抓取可见内容并发送到你的服务端，返回结构化摘要，适合新闻阅读、技术博客、论文页面等。</p>
+        <div class="cta">
+          <a class="btn" href="#install">开始使用</a>
+          <a class="btn secondary" href="#how">查看用法</a>
+        </div>
+        <div style="margin-top:14px">
+          <span class="tag">可见文本提取</span>
+          <span class="tag">一键发送</span>
+          <span class="tag">隐私自托管</span>
+          <span class="tag">Markdown 摘要</span>
+        </div>
+      </div>
+      <div>
+        <img class="pet" alt="电子宠物：网页摘要助手" src="/static/pet.png" />
+      </div>
+    </div>
+
+    <div class="grid" id="install">
+      <div class="card">
+        <h3>功能简介</h3>
+        <p>插件功能：<b>一键将网页内容发送给 AI</b>，帮你快速生成摘要（Chrome 浏览器）。</p>
+      </div>
+      <div class="card">
+        <h3>安装方式</h3>
+        <ol class="muted" style="margin:0 0 0 18px;">
+          <li>下载插件包并解压；</li>
+          <li>打开 <span class="kbd">chrome://extensions</span>；</li>
+          <li>右上角开启<b>开发者模式</b>；</li>
+          <li>点击<b>“加载已解压的扩展程序”</b>，选择该插件目录；</li>
+          <li>启用插件。</li>
+        </ol>
+      </div>
+      <div class="card">
+        <h3>基本使用</h3>
+        <p>在插件选项页填写你在该应用中的 <b>服务端链接</b>（HTTP/HTTPS）。之后在任意页面点击浏览器工具栏按钮，或页面右侧浮动按钮，选择 <b>Send → AI</b> 即可。</p>
+      </div>
+    </div>
+
+    <div class="steps" id="how" style="margin-top:24px">
+      <div class="step">
+        <b>① 获取服务端链接</b>
+        <div class="inputrow">
+          <input id="serverInput" placeholder="https://c-1955544736917712897.ksai.scnet.cn:58043/ingest" />
+          <button class="btn" onclick="copyServer()">复制</button>
+        </div>
+      </div>
+      <div class="step">
+        <b>② 一键发送</b>
+        <p class="muted">点击 <b>Send → AI</b>。扩展会抓取可见文本（可选截图，暂未实装）并发送到你的服务端。</p>
+      </div>
+      <div class="step">
+        <b>③ 快速总结</b>
+        <p class="muted">你的服务端调用 LLM 生成摘要（可返回 Markdown），窗口内实时流式展示。</p>
+      </div>
+      <div class="step">
+        <b>④ 安全与可控</b>
+        <p class="muted">所有数据经你配置的服务端转发与处理，便于审计与限流。</p>
+      </div>
+    </div>
+
+    <div class="grid" style="margin-top:24px">
+      <div class="card">
+        <h3>常见问题</h3>
+        <p><b>Q：</b>为什么看不到按钮？<br/><span class="muted">A：确保已启用扩展，并在选项中开启“页面悬浮按钮”。</span></p>
+        <p style="margin-top:8px"><b>Q：</b>提取不到文字？<br/><span class="muted">A：某些站点采用反爬/虚拟化渲染。“提取模式”为 <i>元素 + innerText</i>，请尝试滚动页面后再发送。</span></p>
+        <p style="margin-top:8px"><b>Q：</b>请求失败？<br/><span class="muted">A：检查服务端地址是否可访问（协议、端口、CORS），以及 API Key 配置。</span></p>
+      </div>
+      <div class="card">
+        <h3>隐私说明</h3>
+        <p class="muted">网页内容只会发送到你配置的服务端；不经过第三方。你可以在服务端实现脱敏、日志与配额控制。</p>
+      </div>
+      <div class="card">
+        <h3>开发者友好</h3>
+        <p class="muted">提供可配置的请求头/负载结构，便于与任意后端（如 Flask、FastAPI、Node）对接。</p>
+      </div>
+    </div>
+
+    <p class="footer">© sandbox · Chrome 扩展 · 摘要助手</p>
+  </div>
+
+  <script>
+    function copyServer() {
+      const input = document.getElementById('serverInput');
+      input.select();
+      input.setSelectionRange(0, 99999);
+      document.execCommand('copy');
+      const btns = document.getElementsByClassName('btn');
+      if (btns.length) {
+        const b = btns[0];
+        const old = b.textContent;
+        b.textContent = '已复制';
+        setTimeout(() => b.textContent = old, 1200);
+      }
+    }
+  </script>
+</body>
+</html>
