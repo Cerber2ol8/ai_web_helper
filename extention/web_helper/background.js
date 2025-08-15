@@ -103,11 +103,29 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           return;
         }
 
+        // 确定请求的端点URL（支持chat路由）
+        let requestUrl = endpoint;
+        if (msg.payload.question) {
+          // 如果存在question字段，使用chat路由
+          try {
+            const endpointUrl = new URL(endpoint);
+            endpointUrl.pathname = '/chat';
+            requestUrl = endpointUrl.toString();
+          } catch (e) {
+            // 如果URL解析失败，直接替换路径
+            if (endpoint.endsWith('/ingest')) {
+              requestUrl = endpoint.replace('/ingest', '/chat');
+            } else {
+              requestUrl = endpoint + '/chat';
+            }
+          }
+        }
+
         // 发送请求并等待响应
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 30000); // 30秒超时
         
-        const response = await fetch(endpoint, {
+        const response = await fetch(requestUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

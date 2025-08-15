@@ -94,33 +94,65 @@ async function collectPayload({captureScreenshot = true, reason = 'button_click'
   return payload;
 }
 
+// function parseMarkdown(text) {
+//   if (!text) return '';
+  
+//   // 初始化markdown-it实例
+//   const md = window.markdownit({
+//     html: false,        // 禁用HTML标签
+//     xhtmlOut: false,    // 不使用XHTML输出
+//     breaks: false,      // 不转换\n为<br>
+//     langPrefix: 'language-',  // 代码块语言前缀
+//     linkify: true,      // 自动链接URL
+//     typographer: true,  // 启用替换符号
+//     quotes: '“”‘’',     // 引号样式
+//     highlight: function (str, lang) {
+//       // 代码高亮处理
+//       if (lang && hljs.getLanguage(lang)) {
+//         try {
+//           return hljs.highlight(str, { language: lang }).value;
+//         } catch (__) {}
+//       }
+//       return ''; // 使用外部默认的转义
+//     }
+//   });
+  
+//   // 添加任务列表支持
+//   md.use(window.markdownItTaskLists);
+  
+//   // 渲染Markdown
+//   return md.render(text);
+// }
+
 function parseMarkdown(text) {
-  if (!text) return '';
-  // 粗体
-  text = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-  // 斜体
-  text = text.replace(/\*(.*?)\*/g, '<em>$1</em>');
-  // 换行
-  text = text.replace(/\n/g, '<br>');
-  // 无序列表
-  text = text.replace(/^[-+*] (.*)$/gm, '<ul><li>$1</li></ul>');
-  // 有序列表
-  text = text.replace(/^\d+\. (.*)$/gm, '<ol><li>$1</li></ol>');
-  // 链接
-  text = text.replace(/\$$([^$$]+)$$$([^$$]+)$$/g, '<a href="$2">$1</a>');
-  // 代码块
-  text = text.replace(/^```([\s\S]*?)```$/gm, '<pre><code>$1</code></pre>');
-  // 标题
-  text = text.replace(/^### (.*$)/gim, '<h3>$1</h3>');
-  text = text.replace(/^## (.*$)/gim, '<h2>$1</h2>');
-  text = text.replace(/^# (.*$)/gim, '<h1>$1</h1>');
-  return text;
+  // 用 markdown-it 解析
+  if (typeof window.markdownit !== 'undefined') {
+    return window.markdownit().render(text);
+  } else {
+    // 如果markdown-it不可用，回退到基本的文本处理
+    if (!text) return '';
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/\n/g, '<br>')
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.*?)\*/g, '<em>$1</em>')
+      .replace(/!\[(.*?)\]\((.*?)\)/g, '<img alt="$1" src="$2">')
+      .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2">$1</a>');
+  }
 }
+
+// 添加一个变量来存储累积的内容
+let accumulatedContent = '[正在生成中...]';
 
 // 创建流式数据显示窗口
 function createStreamWindow() {
   // 如果窗口已存在，直接返回
   if (document.getElementById('ptaistream')) return;
+  
+  // 重置累积内容
+  accumulatedContent = '';
   
   const container = document.createElement('div');
   container.id = 'ptaistream';
@@ -146,15 +178,47 @@ function createStreamWindow() {
   content.className = 'ptaistream-content';
   content.id = 'ptaistream-content';
   
-  // 通过CSS设置滚动，避免样式冲突
+  // 添加输入区域
+  const inputContainer = document.createElement('div');
+  inputContainer.className = 'ptaistream-input-container';
+  
+  const input = document.createElement('textarea');
+  input.placeholder = '输入问题以继续对话...';
+  input.className = 'ptaistream-input';
+  input.id = 'ptaistream-input';
+  
+  const sendButton = document.createElement('button');
+  sendButton.innerText = '发送';
+  sendButton.className = 'ptaistream-send-button';
+  sendButton.id = 'ptaistream-send-button';
+  
+  inputContainer.appendChild(input);
+  inputContainer.appendChild(sendButton);
   
   container.appendChild(header);
   container.appendChild(content);
+  container.appendChild(inputContainer);
   document.documentElement.appendChild(container);
   
   // 绑定关闭事件
   document.getElementById('ptaistream-close').addEventListener('click', () => {
+    // 发送停止流式传输的消息到background
+    chrome.runtime.sendMessage({type: 'stop_stream'});
     container.remove();
+  });
+  
+  // 绑定发送事件
+  sendButton.addEventListener('click', sendQuestion);
+  input.addEventListener('keypress', (e) => {
+    // 修改为Enter发送，Ctrl+Enter换行
+    if (e.key === 'Enter' && !e.ctrlKey) {
+      sendQuestion();
+      e.preventDefault(); // 防止换行
+    } else if (e.key === 'Enter' && e.ctrlKey) {
+      // Ctrl+Enter换行 - 这是默认行为，不需要额外处理
+      // 但我们需要阻止发送
+      e.stopPropagation();
+    }
   });
   
   // 添加拖拽功能
@@ -311,6 +375,79 @@ function createStreamWindow() {
   return container;
 }
 
+// 发送问题的函数
+async function sendQuestion() {
+  const input = document.getElementById('ptaistream-input');
+  const contentArea = document.getElementById('ptaistream-content');
+  const question = input.value.trim();
+  
+  if (!question) return;
+  
+  // 显示用户问题
+  accumulatedContent += `\n\n**你:**\n\n${question}\n\n`;
+  contentArea.innerHTML = parseMarkdown(accumulatedContent);
+
+  input.value = '';
+  input.disabled = true;
+  document.getElementById('ptaistream-send-button').disabled = true;
+  
+  try {
+    // 收集当前页面内容作为上下文
+    const payload = await collectPayload({captureScreenshot: false, reason: 'follow_up_question'});
+    payload.question = question; // 添加用户问题
+    
+    // 发送到后台处理
+    chrome.runtime.sendMessage({type:'send_payload', payload}, (resp) => {
+      if (!resp || !resp.ok) {
+        contentArea.innerHTML += '\n[发送问题时出错]\n';
+        input.disabled = false;
+        document.getElementById('ptaistream-send-button').disabled = false;
+      }
+    });
+    
+    // 监听来自background的消息，流式显示返回内容
+    const handleMessage = function(request, sender, sendResponse) {
+      if (request.type === 'stream_start') {
+        if (contentArea) {
+          accumulatedContent += '**AI:**\n\n';
+          contentArea.innerHTML = parseMarkdown(accumulatedContent);
+        }
+        sendResponse({received: true});
+      } else if (request.type === 'stream_chunk') {
+        if (contentArea) {
+          try {
+            const chunk = JSON.parse(request.chunk);
+            accumulatedContent += chunk;
+          } catch (e) {
+            accumulatedContent += request.chunk;
+          }
+          // 更新整个内容区域而不是追加
+          contentArea.innerHTML = parseMarkdown(accumulatedContent);
+          contentArea.scrollTop = contentArea.scrollHeight;
+        }
+        sendResponse({received: true});
+      } else if (request.type === 'stream_end') {
+        // 启用输入框
+        input.disabled = false;
+        document.getElementById('ptaistream-send-button').disabled = false;
+        
+        // 移除监听器
+        chrome.runtime.onMessage.removeListener(handleMessage);
+        sendResponse({received: true});
+      }
+      return true;
+    };
+    
+    // 添加消息监听器
+    chrome.runtime.onMessage.addListener(handleMessage);
+  } catch (err) {
+    console.error(err);
+    contentArea.innerHTML += '\n[发送问题时出错]\n';
+    input.disabled = false;
+    document.getElementById('ptaistream-send-button').disabled = false;
+  }
+}
+
 function createButton() {
   // avoid injecting multiple times
   if (document.getElementById('ptaibtn')) return;
@@ -414,23 +551,27 @@ function createButton() {
       const handleMessage = function(request, sender, sendResponse) {
         if (request.type === 'stream_start') {
           if (contentArea) {
-            contentArea.innerText = '[开始接收数据...]\n';
+            accumulatedContent = '[开始接收数据...]\n\n';
+            contentArea.innerHTML = parseMarkdown(accumulatedContent);
           }
           sendResponse({received: true});
         } else if (request.type === 'stream_chunk') {
           if (contentArea) {
             try {
               const chunk = JSON.parse(request.chunk);
-              contentArea.innerHTML += parseMarkdown(chunk);
+              accumulatedContent += chunk;
             } catch (e) {
-              contentArea.innerHTML += parseMarkdown(request.chunk);
+              accumulatedContent += request.chunk;
             }
+            // 更新整个内容区域而不是追加
+            contentArea.innerHTML = parseMarkdown(accumulatedContent);
             contentArea.scrollTop = contentArea.scrollHeight;
           }
           sendResponse({received: true});
         } else if (request.type === 'stream_end') {
           if (contentArea) {
-            contentArea.innerText += '\n\n[分析完成]';
+            accumulatedContent += '\n\n[分析完成]';
+            contentArea.innerHTML = parseMarkdown(accumulatedContent);
           }
           // 移除监听器
           chrome.runtime.onMessage.removeListener(handleMessage);
@@ -465,90 +606,20 @@ const obs = new MutationObserver(() => {
 });
 obs.observe(document.documentElement || document.body, {childList: true, subtree: true});
 
+// // 添加highlight.js库
+// const highlightScript = document.createElement('script');
+// highlightScript.src = 'https://cdn.jsdelivr.net/npm/highlight.js@11.8.0/dist/highlight.min.js';
+// document.head.appendChild(highlightScript);
+
+// // 添加highlight.js样式
+// const highlightStyles = document.createElement('link');
+// highlightStyles.rel = 'stylesheet';
+// highlightStyles.href = 'https://cdn.jsdelivr.net/npm/highlight.js@11.8.0/styles/github-dark.min.css';
+// document.head.appendChild(highlightStyles);
+
 // 添加样式
 const style = document.createElement('style');
 style.textContent = `
-  /* GitHub Markdown Style */
-  .ptaistream-content {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
-    font-size: 16px;
-    line-height: 1.5;
-    color: #24292e;
-    background-color: #ffffff;
-    overflow-y: auto;
-    padding: 16px;
-  }
-
-  /* Headings */
-  .ptaistream-content h1, .ptaistream-content h2, .ptaistream-content h3,
-  .ptaistream-content h4, .ptaistream-content h5, .ptaistream-content h6 {
-    margin-top: 24px;
-    margin-bottom: 16px;
-    font-weight: 600;
-    line-height: 1.25;
-    color: #1f2328;
-  }
-
-  /* Code blocks */
-  .ptaistream-content pre {
-    background-color: #f6f8fa;
-    border-radius: 6px;
-    font-size: 85%;
-    overflow: auto;
-    padding: 16px;
-    margin-top: 16px;
-    margin-bottom: 16px;
-  }
-
-  .ptaistream-content code {
-    background-color: rgba(27,31,35,0.05);
-    border-radius: 3px;
-    font-size: 85%;
-    margin: 0;
-    padding: 0.2em 0.4em;
-  }
-
-  /* Lists */
-  .ptaistream-content ul, .ptaistream-content ol {
-    padding-left: 20px;
-    margin-top: 0;
-    margin-bottom: 16px;
-  }
-
-  .ptaistream-content li {
-    margin-bottom: 4px;
-  }
-
-  /* Blockquotes */
-  .ptaistream-content blockquote {
-    margin-left: 0;
-    padding: 0 1em;
-    color: #6a737d;
-    border-left: 0.25em solid #dfe2e5;
-  }
-
-  /* Tables */
-  .ptaistream-content table {
-    border-spacing: 0;
-    border-collapse: collapse;
-    display: block;
-    width: 100%;
-    overflow: auto;
-  }
-
-  .ptaistream-content th, .ptaistream-content td {
-    padding: 6px 13px;
-    border: 1px solid #dfe2e5;
-  }
-
-  /* Horizontal rules */
-  .ptaistream-content hr {
-    height: 0.25em;
-    margin: 24px 0;
-    background-color: #e1e4e8;
-    border: 0;
-  }
-
   .ptaistream-container {
     position: fixed;
     top: 50%;
@@ -562,7 +633,7 @@ style.textContent = `
     border-radius: 8px 0 0 8px;  /* 右侧直角 */
     box-shadow: -4px 0 12px rgba(0,0,0,0.5);  /* 左侧阴影 */
     z-index: 10000;
-    display: none;
+    display: flex;
     flex-direction: column;
     resize: both; /* 允许用户调整大小 */
     overflow: hidden; /* 防止内容溢出 */
@@ -610,69 +681,80 @@ style.textContent = `
     color: #fff;
   }
   
+  /* GitHub Markdown Style */
   .ptaistream-content {
     flex: 1;
-    padding: 15px;
     overflow-y: auto; /* 启用垂直滚动 */
     overflow-x: auto; /* 启用水平滚动 */
-    font-family: monospace;
-    font-size: 14px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    font-size: 16px;
     line-height: 1.5;
-    background: #1a1a1a;
-    color: #e6e6e6;
-    white-space: pre-wrap; /* 支持换行显示 */
-    max-height: 85%; /* 限制最大高度 */
+    color: #24292e;
+    background-color: #ffffff;
+    white-space: normal; /* 让 HTML 标签正常渲染 */
+    padding: 10px;
+    height: calc(100% - 140px); /* 调整高度以适应输入框 */
+    padding-bottom: 20px; /* 添加下边缘填充避免内容被截断 */
+    margin-bottom: 10px;
+    margin-left: 20px;
+    // 添加明显的边框
+    border: 1px solid #ddd;
+    border-radius: 4px;
   }
   
-  /* 添加Markdown渲染相关样式 */
-  .ptaistream-content h1,
-  .ptaistream-content h2,
-  .ptaistream-content h3 {
+  .ptaistream-content code, .ptaistream-content pre {
+      font-family: monospace;
+  }
+  
+  /* 添加输入区域样式 */
+  .ptaistream-input-container {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    padding: 10px;
+    background: #333;
+    border-top: 1px solid #555;
+    flex-shrink: 0; /* 防止输入框被压缩 */
+  }
+  
+  .ptaistream-input {
+    flex: 1;
+    padding: 8px;
+    border: 1px solid #555;
+    border-radius: 4px;
+    background: #222;
     color: #fff;
-    margin-top: 1em;
-    margin-bottom: 0.5em;
   }
   
-  .ptaistream-content p {
-    margin: 0.5em 0;
-    line-height: 1.5;
+  .ptaistream-send-button {
+    margin-left: 10px;
+    padding: 8px 16px;
+    background: #1a73e8;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
   }
   
-  .ptaistream-content ul,
-  .ptaistream-content ol {
-    padding-left: 1.5em;
-    margin: 0.5em 0;
+  .ptaistream-send-button:hover {
+    background: #0d62c9;
   }
   
-  .ptaistream-content li {
-    margin: 0.3em 0;
+  .ptaistream-send-button:disabled {
+    background: #555;
+    cursor: not-allowed;
   }
   
-  .ptaistream-content code {
-    background-color: #333;
-    padding: 0.2em 0.4em;
-    border-radius: 3px;
-    font-family: monospace;
-  }
-  
-  .ptaistream-content pre {
-    background-color: #333;
-    padding: 1em;
-    border-radius: 5px;
-    overflow-x: auto;
-    overflow-y: auto;
-  }
-  
-  .ptaistream-content pre code {
-    background: none;
-    padding: 0;
-  }
-  
-  .ptaistream-content blockquote {
-    border-left: 3px solid #555;
-    padding-left: 1em;
-    margin: 0.5em 0;
-    color: #ccc;
+  /* 加载GitHub Markdown CSS */
+  .ptaistream-content {
+    @import url(chrome.runtime.getURL('css/github-markdown.css'));
   }
 `;
 document.head.appendChild(style);
+
+// 添加本地markdown-it库的引用
+const markdownItScript = document.createElement('script');
+markdownItScript.src = chrome.runtime.getURL('vendor/markdown-it.min.js');
+document.head.appendChild(markdownItScript);

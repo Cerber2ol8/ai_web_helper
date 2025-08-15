@@ -25,11 +25,12 @@
       "matches": [
         "<all_urls>"
       ],
-      "js": [
-        "content_script.js"
-      ],
+      "js": ["vendor/markdown-it.min.js", "content_script.js"],
       "css": [
-        "styles.css"
+        "css/styles.css",
+        "css/github-markdown.css",
+        "css/github-markdown-dark.css",
+        "css/github-markdown-light.css"
       ],
       "run_at": "document_idle"
     }

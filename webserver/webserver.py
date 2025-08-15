@@ -1,5 +1,6 @@
 from openai import OpenAI
-
+import re
+# from mcp_client import call_tool
 from flask import Flask, request, jsonify, Response, render_template_string
 import base64
 import os
@@ -16,6 +17,9 @@ MODEL = "Qwen3-30B-A3B"
 OLLAMA_URL = "http://10.111.11.128:11434/api/generate"
 OLLAMA_MODEL = "alibayram/Qwen3-30B-A3B-Instruct-2048:latest"
 
+
+
+
 # 读取 HTML 文件内容
 with open('index.html', 'r', encoding='utf-8') as f:
     html_content = f.read()
@@ -23,10 +27,15 @@ with open('index.html', 'r', encoding='utf-8') as f:
 
 def summarize_with_stream(title, text):
     # prompt = f"你是一个浏览器内容分析助手，下面的内容是用户位于浏览器当前标签页中的信息，结合标签页标题和内容分析当前用户的浏览器内容，随后根据内容使用适当简洁的**中文**进行总结。 \n 如果发现内容中存在问题，尝试给出问题的解决方法。要记住使用中文进行回复。\n如果无法进行有效分析，则回复**未找到有效信息** \ntittle:\n {title}\n content:\n{text}"
-    prompt = f"你是一个浏览器内容分析助手，下面的内容是用户位于浏览器中的信息，结合标题 **{title}** 和**内容**，用简洁的**中文**总结以下内容：\n{text} \n 要记住使用中文进行回复，只输出中文总结部分。 \n 如果发现内容中存在问题，尝试给出问题的解决方法。\n如果是技术文章，请总结和分析文章内容。\n如果是论文，请总结和分析论文相关内容。/no_think"
+    prompt = f"""你是一个浏览器内容分析助手，你可以获取到位于用户浏览器中的元素(innerText)以及标题信息，
+    结合标题 **{title}** 和**内容**，用简洁的**中文**总结以下内容：\n{text}
+    注意**过滤重复元素**，如果是**弹幕或者评论**则不用过滤
+    要记住使用**中文**进行回复，只输出中文总结部分 
+    如果发现内容中存在问题，尝试给出问题的解决方法
+    如果是技术文章，请总结和分析文章内容，对关键点给出解释
+    如果是论文，请总结和分析论文相关内容。/no_think"""
     
     messages = [  
-
     {"role": "system", "content": prompt},
     ]
     chatbot = OpenAI(
@@ -37,11 +46,11 @@ def summarize_with_stream(title, text):
     try:
         stream = chatbot.chat.completions.create(
             model=MODEL,
-            messages=messages,
+            messages=messages, # type: ignore
             max_tokens=10240,
             temperature=0.4,
             stream=True
-            )
+            ) # type: ignore
 
         print("\n[流式摘要开始]:\n", flush=True)
         # 逐个返回数据块
@@ -59,8 +68,53 @@ def summarize_with_stream(title, text):
         print(f"[调用失败: {e}]")
         yield f"[调用失败: {e}]"
 
+# 添加一个新的函数用于处理后续问题
+def chat_with_stream(question, context_title, context_text):
+    prompt = f"你是一个浏览器内容分析助手，下面的内容是用户位于浏览器中的信息，结合标题 **{context_title}** 和**内容**，回答用户的问题：\n{context_text}"
+    
+    messages = [  
+        {"role": "system", "content": prompt},
+        {"role": "user", "content": question}
+    ]
+    chatbot = OpenAI(
+        api_key="key",
+        base_url=BASE_URL,
+    )
+
+    try:
+        stream = chatbot.chat.completions.create(
+            model=MODEL,
+            messages=messages,
+            max_tokens=10240,
+            temperature=0.4,
+            stream=True
+        )
+
+        print("\n[流式对话开始]:\n", flush=True)
+        # 逐个返回数据块
+        for event in stream:
+            # 只处理内容片段
+            if event.choices and event.choices[0].delta.content:
+                chunk = event.choices[0].delta.content
+                if chunk:
+                    print(chunk, end="", flush=True)
+                    # 修复: 确保换行符正确传输
+                    yield chunk
+        
+        print("\n[流式对话结束]\n", flush=True)
+    except Exception as e:
+        print(f"[调用失败: {e}]")
+        yield f"[调用失败: {e}]"
+
 def summarize_with_ollama_stream(title, text):
-    prompt = f"你是一个浏览器内容分析助手，下面的内容是用户位于浏览器中的信息，结合标题 {title} 内容提取核心信息，然后用简洁的**中文**总结以下内容：\n{text} \n 要记住使用中文进行回复"
+    # prompt = f"你是一个浏览器内容分析助手，下面的内容是用户位于浏览器中的信息，结合标题 {title} 内容提取核心信息，然后用简洁的**中文**总结以下内容：\n{text} \n 要记住使用中文进行回复"
+    prompt = f"""你是一个浏览器内容分析助手，你可以获取到位于用户浏览器中的元素(innerText)以及标题信息，
+    结合标题 **{title}** 和**内容**，用简洁的**中文**总结以下内容：\n{text}
+    注意**过滤重复元素**，如果是**弹幕或者评论**则不用过滤
+    要记住使用**中文**进行回复，只输出中文总结部分 
+    如果发现内容中存在问题，尝试给出问题的解决方法
+    如果是技术文章，请总结和分析文章内容，对关键点给出解释
+    如果是论文，请总结和分析论文相关内容。/no_think"""
 
     try:
         r = requests.post(
@@ -125,6 +179,32 @@ def ingest():
     # 流式调用并返回流式响应
     def generate():
         for chunk in summarize_with_stream(title=title, text=data.get("visibleText", "")[:30000]):
+            # 修复: 使用正确的SSE格式，保持换行符
+            yield f"data: {json.dumps(chunk)}\n\n"
+    
+    # 修复: 设置正确的Content-Type
+    return Response(generate(), mimetype='text/event-stream')
+
+# 添加一个新的路由用于处理后续问题
+@app.route("/chat", methods=["POST"])
+def chat():
+    data = request.get_json(force=True)
+    question = data.get('question')
+    title = data.get('title')
+    visible_text = data.get('visibleText')
+    
+    print("\n=== New Chat Request ===")
+    print(f"Question: {question}")
+    print(f"Title: {title}")
+    print(f"Visible Text length: {len(visible_text or '')}")
+
+    # 流式调用并返回流式响应
+    def generate():
+        for chunk in chat_with_stream(
+            question=question, 
+            context_title=title, 
+            context_text=visible_text[:30000] if visible_text else ""
+        ):
             # 修复: 使用正确的SSE格式，保持换行符
             yield f"data: {json.dumps(chunk)}\n\n"
     
