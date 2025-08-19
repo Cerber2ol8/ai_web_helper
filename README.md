@@ -13,10 +13,8 @@ AI Web Helper 是一个浏览器扩展插件，可以将网页内容一键发送
 
 - 一键将当前浏览页面的内容发送给 AI
 - 支持流式接收 AI 生成的摘要内容
-- 可配置的 AI 服务端点和 API 密钥
-- 支持多种 AI 模型接口（OpenAI 兼容接口和 Ollama）
-- 可选的页面截图功能
-- 本项目使用了大量介于AI生成的代码（前端），不保证生成的内容是正确的
+- 支持多轮对话
+
 
 ## 项目结构
 
@@ -30,7 +28,7 @@ AI Web Helper 是一个浏览器扩展插件，可以将网页内容一键发送
 │       ├── options.html    # 插件设置页面
 │       ├── options.js      # 插件设置逻辑
 │       └── styles.css      # 插件样式
-└── server
+└── webserver
     ├── index.html          # 服务端前端页面
     ├── main.ipynb          # Jupyter Notebook
     ├── requirement.txt     # Python 依赖
@@ -50,25 +48,31 @@ AI Web Helper 是一个浏览器扩展插件，可以将网页内容一键发送
 1. 安装 Python 3.10+
 2. 安装依赖：
    ```bash
-   pip install -r server/requirement.txt
+   pip install -r webserver/requirement.txt
    ```
-3. 修改 [server/webserver.py](file:///c%3A/Users/hp/sugon/ai_web_helper/server/webserver.py) 中的配置：
+3. 修改 [webserver/webserver.py](file:///c%3A/Users/hp/sugon/ai_web_helper/server/webserver.py) 中的配置：
    - `BASE_URL`: OpenAI 兼容接口地址
    - `MODEL`: 使用的模型名称
    - `OLLAMA_URL`: Ollama 接口地址（可选）
    - `OLLAMA_MODEL`: Ollama 使用的模型名称（可选）
 4. 启动服务：
    ```bash
-   python server/webserver.py
+   python webserver/webserver.py
    ```
 
 ## 使用说明
 
 1. 安装并启用浏览器插件
 2. 点击浏览器工具栏中的插件图标
-3. 在弹出的界面中配置 AI 服务端点和 API 密钥
-4. 访问任意网页，点击页面右下角的"发送到 AI"按钮
-5. 等待 AI 分析并生成网页内容摘要
+3. 在弹出的界面中配置 AI 服务端点和 API 密钥，如：
+```
+Endpoint URL:
+http://127.0.0.1:9000/ingest
+API Key:
+sk-1234567890
+```
+4. 访问任意网页，点击页面右下角的"send -> AI"按钮
+5. 等待 AI 分析并生成网页内容摘要和多轮对话
 
 ## 技术架构
 
@@ -101,6 +105,6 @@ AI Web Helper 是一个浏览器扩展插件，可以将网页内容一键发送
 
 
 ### 已知问题
-1. 首次拖动流式输出窗口时窗口会闪动（不影响使用，本人没有javascript经验，请自行解决）
+1. 首次拖动流式输出窗口时窗口会闪动
 2. 关闭输出窗口如果输出没有结束，下次再开启会继续上次的输出，但没有历史消息
-3. 暂时不支持图片ocr，但是添加了图片上传功能，请自行修改 [webserver.py](server/webserver.py) 中的相关参数。
+3. 暂时不支持图片ocr，但是添加了图片上传功能，请自行修改 [webserver.py](webserver/webserver.py) 中的相关参数。

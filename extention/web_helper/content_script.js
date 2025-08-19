@@ -689,22 +689,32 @@ style.textContent = `
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
     font-size: 16px;
     line-height: 1.5;
-    color: #24292e;
-    background-color: #ffffff;
+    color: #e6e6e6ff;
+    background-color: rgba(39, 40, 46, 1);
     white-space: normal; /* 让 HTML 标签正常渲染 */
     padding: 10px;
     height: calc(100% - 140px); /* 调整高度以适应输入框 */
     padding-bottom: 20px; /* 添加下边缘填充避免内容被截断 */
     margin-bottom: 10px;
-    margin-left: 20px;
+    margin-left: 5px;
     // 添加明显的边框
     border: 1px solid #ddd;
     border-radius: 4px;
   }
   
-  .ptaistream-content code, .ptaistream-content pre {
-      font-family: monospace;
+  /* 修复列表序号显示问题 */
+  .ptaistream-content ol, .ptaistream-content ul {
+    padding-left: 20px;
+    margin-left: 0;
   }
+  
+  .ptaistream-content li {
+    padding-left: 5px;
+  }
+  
+  // .ptaistream-content code, .ptaistream-content pre {
+  //     font-family: monospace;
+  // }
   
   /* 添加输入区域样式 */
   .ptaistream-input-container {

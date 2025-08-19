@@ -8,14 +8,16 @@ import requests
 import json
 # 添加time模块用于生成纯数字时间戳
 import time
+import dotenv
+dotenv.load_dotenv()
+
 app = Flask(__name__, static_url_path='/static', static_folder='static')
 
-BASE_URL = "http://localhost:8000/v1"
-MODEL = "Qwen3-30B-A3B"
+BASE_URL = os.getenv("BASE_URL")
+MODEL = os.getenv("MODEL")
 
-
-OLLAMA_URL = "http://10.111.11.128:11434/api/generate"
-OLLAMA_MODEL = "alibayram/Qwen3-30B-A3B-Instruct-2048:latest"
+OLLAMA_URL = os.getenv("OLLAMA_URL")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL")
 
 
 
