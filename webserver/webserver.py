@@ -19,9 +19,10 @@ MODEL = os.getenv("MODEL")
 OLLAMA_URL = os.getenv("OLLAMA_URL")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL")
 
-
-
-
+# 获取API密钥配置
+keys = os.getenv("API_KEYS", "your-api-key-here")
+KEY_SETS = set(keys.split(","))
+# print(KEY_SETS)
 # 读取 HTML 文件内容
 with open('index.html', 'r', encoding='utf-8') as f:
     html_content = f.read()
@@ -150,8 +151,30 @@ def summarize_with_ollama_stream(title, text):
         print(f"[调用失败: {e}]")
         return f"[调用失败: {e}]"
 
+def require_api_key(f):
+    """
+    装饰器函数，用于验证请求中的Authorization字段
+    """
+    def decorated_function(*args, **kwargs):
+        auth_header = request.headers.get('Authorization')
+        if not auth_header:
+            return jsonify({"error": "Missing Authorization header"}), 401
+        
+        # 支持 Bearer token 格式
+        if auth_header.startswith('Bearer '):
+            token = auth_header.split(' ')[1]
+        else:
+            token = auth_header
+            
+        if KEY_SETS and (token is None or token not in KEY_SETS):
+            return jsonify({"error": "Invalid API key"}), 403
+            
+        return f(*args, **kwargs)
+    decorated_function.__name__ = f.__name__
+    return decorated_function
 
 @app.route("/ingest", methods=["POST"])
+@require_api_key
 def ingest():
     data = request.get_json(force=True)
     title = data.get('title')
@@ -189,6 +212,7 @@ def ingest():
 
 # 添加一个新的路由用于处理后续问题
 @app.route("/chat", methods=["POST"])
+@require_api_key
 def chat():
     data = request.get_json(force=True)
     question = data.get('question')
